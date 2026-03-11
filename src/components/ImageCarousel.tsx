@@ -67,6 +67,9 @@ export default function ImageCarousel({ primarySrc, alt, children, productUrl }:
   }, [primarySrc, images]);
 
   // Phase 2: Full probe — fetch all remaining images in background, merge in
+  // IMPORTANT: never shrink the images array below what quick probe found,
+  // because Vercel's IPs can get rate-limited on sequential HEAD requests
+  // causing the full probe to return fewer results than the quick probe.
   const probeFull = useCallback(async () => {
     if (fullProbeStarted.current) return;
     fullProbeStarted.current = true;
@@ -78,7 +81,10 @@ export default function ImageCarousel({ primarySrc, alt, children, productUrl }:
       });
       const data = await resp.json();
       if (data.images?.length) {
-        setImages(data.images);
+        setImages(prev => {
+          if (!prev || data.images.length >= prev.length) return data.images;
+          return prev; // keep quick-probe result if full probe found fewer
+        });
       }
     } catch {
       // silent — quick probe already gave us something
@@ -128,6 +134,16 @@ export default function ImageCarousel({ primarySrc, alt, children, productUrl }:
       img.src = hiUrl;
     }
   }, [fullyProbed, images, currentIndex]);
+
+  // Safety net: if images array shrinks below currentIndex, clamp back
+  useEffect(() => {
+    if (images && images.length > 0 && currentIndex >= images.length) {
+      setIsTransitioning(true);
+      setDragOffset(0);
+      setCurrentIndex(images.length - 1);
+      setTimeout(() => setIsTransitioning(false), 300);
+    }
+  }, [images, currentIndex]);
 
   // Navigate to a specific index with smooth transition
   const goToIndex = useCallback((idx: number) => {
@@ -239,7 +255,7 @@ export default function ImageCarousel({ primarySrc, alt, children, productUrl }:
   }, []);
 
   const onTouchEnd = useCallback(
-    () => {
+    async () => {
       if (!dragging.current && directionLocked.current !== "h") return;
       dragging.current = false;
       directionLocked.current = null;
@@ -249,9 +265,14 @@ export default function ImageCarousel({ primarySrc, alt, children, productUrl }:
 
       if (ratio < -SNAP_THRESHOLD) {
         // Swiped left → go next
-        // Snap immediately to the next slide (placeholder or real)
-        // The probe was already fired during touchmove — it will fill in real images when ready
-        if (currentIndex + 1 < totalSlides) {
+        // Await the quick probe (started during touchmove) so we know the real count
+        // before allowing forward navigation — prevents navigating to blank slides
+        let maxIndex = totalSlides - 1;
+        if (probePromiseRef.current) {
+          const imgs = await probePromiseRef.current;
+          maxIndex = imgs.length - 1;
+        }
+        if (currentIndex + 1 <= maxIndex) {
           goToIndex(currentIndex + 1);
         } else {
           snapBack();

@@ -96,13 +96,16 @@ export default function SearchPage() {
     setMismatch({ show: false, intended: null });
 
     try {
+      const tStart = performance.now();
       const resp = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_query: userQuery, club_type: ct }),
       });
+      const tNetwork = performance.now() - tStart;
       const data: SearchResult = await resp.json();
 
+      const tRender0 = performance.now();
       setProducts(data.products);
       setGeneratedUrl(data.generated_url);
       setTotalCount(data.total_count);
@@ -114,6 +117,24 @@ export default function SearchPage() {
       if (data.potential_clubtype_mismatch && data.intended_club_type) {
         setMismatch({ show: true, intended: data.intended_club_type });
       }
+
+      // Log full round-trip diagnostic
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const timing = (data as any)._timing;
+      const tTotal = performance.now() - tStart;
+      console.log("\n%c=== Search Round-Trip Diagnostic ===", "color: #b71c1c; font-weight: bold; font-size: 14px");
+      if (timing) {
+        console.log(`  🔍 Query classification (LLM):  ${timing.classify_ms} ms`);
+        console.log(`  📄 Prompt file load:             ${timing.prompt_load_ms} ms`);
+        console.log(`  🔗 URL generation (LLM):         ${timing.url_build_ms} ms`);
+        console.log(`  🌐 Scrape 2ndSwing:              ${timing.scrape_ms} ms`);
+        console.log(`  ⚙️  Total server processing:      ${timing.total_server_ms} ms`);
+      }
+      console.log(`  📡 Network round-trip (fetch):   ${Math.round(tNetwork)} ms`);
+      console.log(`  🖥️  Client overhead:              ${Math.round(tNetwork - (timing?.total_server_ms || 0))} ms`);
+      console.log(`  📦 Products returned:            ${data.products.length}`);
+      console.log(`  ⏱️  Total click-to-data:          ${Math.round(tTotal)} ms`);
+      console.log("%c====================================", "color: #b71c1c; font-weight: bold");
     } catch (err) {
       console.error("Search failed:", err);
       alert("Something went wrong performing the search. Please try again.");

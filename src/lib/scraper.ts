@@ -9,11 +9,15 @@ export async function scrape2ndSwing(url: string): Promise<{
   noResults: boolean;
 }> {
   try {
+    const tFetch0 = performance.now();
     const resp = await fetch(url, {
       headers: { "User-Agent": "Mozilla/5.0" },
       signal: AbortSignal.timeout(10000),
     });
     const html = await resp.text();
+    const tFetch = performance.now() - tFetch0;
+
+    const tParse0 = performance.now();
     const $ = cheerio.load(html);
 
     let noResults = false;
@@ -163,6 +167,9 @@ export async function scrape2ndSwing(url: string): Promise<{
         attrs,
       });
     });
+
+    const tParse = performance.now() - tParse0;
+    console.log(`  Scrape sub-timing → fetch: ${Math.round(tFetch)} ms, parse: ${Math.round(tParse)} ms, html size: ${(html.length / 1024).toFixed(1)} KB`);
 
     return { products, totalCount, appliedFilters, nextPageUrl, noResults };
   } catch (e) {
