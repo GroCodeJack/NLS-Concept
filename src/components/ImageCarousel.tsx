@@ -265,12 +265,14 @@ export default function ImageCarousel({ primarySrc, alt, children, productUrl }:
 
       if (ratio < -SNAP_THRESHOLD) {
         // Swiped left → go next
-        // Await the quick probe (started during touchmove) so we know the real count
-        // before allowing forward navigation — prevents navigating to blank slides
+        // If images are already loaded, use their count directly.
+        // Only await the probe promise on the first swipe (before images exist).
         let maxIndex = totalSlides - 1;
-        if (probePromiseRef.current) {
+        if (!imagesRef.current && probePromiseRef.current) {
           const imgs = await probePromiseRef.current;
           maxIndex = imgs.length - 1;
+        } else if (imagesRef.current) {
+          maxIndex = imagesRef.current.length - 1;
         }
         if (currentIndex + 1 <= maxIndex) {
           goToIndex(currentIndex + 1);
