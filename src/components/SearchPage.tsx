@@ -78,12 +78,13 @@ export default function SearchPage() {
     phIndexRef.current = 0;
   }
 
-  // Auto-resize textarea
+  // Auto-resize textarea — grow beyond 2 lines only when user types enough
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
+    // Reset then grow to content (rows=2 sets the CSS minimum)
     ta.style.height = "auto";
-    ta.style.height = Math.max(ta.scrollHeight, 20) + "px";
+    ta.style.height = ta.scrollHeight + "px";
   }, [userQuery]);
 
   // Search
@@ -285,8 +286,8 @@ export default function SearchPage() {
                   }}
                   onKeyDown={handleKeyDown}
                   placeholder={currentPlaceholder}
-                  rows={1}
-                  className="flex-1 p-4 pr-[60px] border-none text-base resize-none outline-none min-h-5 overflow-y-hidden leading-relaxed font-body transition-[height] duration-200"
+                  rows={2}
+                  className="flex-1 p-4 pr-[60px] border-none text-base resize-none outline-none overflow-y-hidden leading-relaxed font-body"
                   style={
                     {
                       "--ph-opacity": phOpacity,
